@@ -155,11 +155,11 @@ _unit_system = {
 #       (which is necessary for uniqueness but means you can't graph directly from the map)
 if _full_tsb_detail is True:
     _meas_names = {
-        "Flow_Total": [0, False],
-        "Flow_Fast": [0, True],
-        "Flow_Med": [0, True],
-        "Flow_Slow": [0, True],
-        "Flow_Base": [0, True],
+        "Runoff_Total": [0, False],
+        "Runoff_Fast": [0, True],
+        "Runoff_Med": [0, True],
+        "Runoff_Slow": [0, True],
+        "Runoff_Base": [0, True],
         "PC_Fast": [1, True],
         "PC_Med": [1, True],
         "PC_Slow": [1, True],
@@ -171,7 +171,7 @@ if _full_tsb_detail is True:
         "Temps": [4, False],
     }
 else:
-    _meas_names = {"Flow_Total": [0, False]}
+    _meas_names = {"Runoff_Total": [0, False]}
 _start_t, _end_t = 0, 0  # Save routing times in global var
 _all_t = []
 _conformed_rain = {}
@@ -705,12 +705,12 @@ class AMMSub:
         precipValue /= _rain_conv_factor
 
         # Save results - not as elegant as it could be, but faster than alternatives
-        self.results["Flow_Total"][self.curIndex] = FlowSum
+        self.results["Runoff_Total"][self.curIndex] = FlowSum
         if _full_tsb_detail is True:
-            self.results["Flow_Fast"][self.curIndex] = QFast
-            self.results["Flow_Med"][self.curIndex] = QMed
-            self.results["Flow_Slow"][self.curIndex] = QSlow
-            self.results["Flow_Base"][self.curIndex] = QBase
+            self.results["Runoff_Fast"][self.curIndex] = QFast
+            self.results["Runoff_Med"][self.curIndex] = QMed
+            self.results["Runoff_Slow"][self.curIndex] = QSlow
+            self.results["Runoff_Base"][self.curIndex] = QBase
             self.results["PC_Fast"][self.curIndex] = PCFast
             self.results["PC_Med"][self.curIndex] = PCMed
             self.results["PC_Slow"][self.curIndex] = PCSlow
@@ -740,21 +740,21 @@ class AMMSub:
     def twin_results(self, twin_results, twin_area):
         area_ratio = self.area / twin_area
         twin_results_copy = self.dict_deepish_copy(twin_results)
-        twin_results_copy["Flow_Total"] = [
-            q * area_ratio for q in twin_results_copy["Flow_Total"]
+        twin_results_copy["Runoff_Total"] = [
+            q * area_ratio for q in twin_results_copy["Runoff_Total"]
         ]
         if _full_tsb_detail == True:
-            twin_results_copy["Flow_Fast"] = [
-                q * area_ratio for q in twin_results_copy["Flow_Fast"]
+            twin_results_copy["Runoff_Fast"] = [
+                q * area_ratio for q in twin_results_copy["Runoff_Fast"]
             ]
-            twin_results_copy["Flow_Med"] = [
-                q * area_ratio for q in twin_results_copy["Flow_Med"]
+            twin_results_copy["Runoff_Med"] = [
+                q * area_ratio for q in twin_results_copy["Runoff_Med"]
             ]
-            twin_results_copy["Flow_Slow"] = [
-                q * area_ratio for q in twin_results_copy["Flow_Slow"]
+            twin_results_copy["Runoff_Slow"] = [
+                q * area_ratio for q in twin_results_copy["Runoff_Slow"]
             ]
-            twin_results_copy["Flow_Base"] = [
-                q * area_ratio for q in twin_results_copy["Flow_Base"]
+            twin_results_copy["Runoff_Base"] = [
+                q * area_ratio for q in twin_results_copy["Runoff_Base"]
             ]
         self.results = twin_results_copy
 
@@ -1300,7 +1300,7 @@ class AMMRun:
                 )
                 inflow_data.clear()
                 for sub in amm_subs:
-                    inflow_data[sub.outlet] += sub.results["Flow_Total"][i]
+                    inflow_data[sub.outlet] += sub.results["Runoff_Total"][i]
                 for outlet in unique_outlets:
                     f.write(
                         "%-16s " % outlet + time_string + "%g\n" % inflow_data[outlet]
@@ -1357,7 +1357,7 @@ class AMMRun:
         tsb_rain_unit = {"IMPERIAL": "in", "METRIC": "mm"}[_unit_system]
 
         tsb_funcs = [
-            tsb_f.add_function("Flow", tsb_flow_unit, "AMM Subcatchments"),
+            tsb_f.add_function("Runoff", tsb_flow_unit, "AMM Subcatchments"),
         ]
         if _full_tsb_detail == True:
             tsb_funcs += [
