@@ -9,7 +9,7 @@ The included script is a user-friendly way to get started quickly with AMM insid
 
 ## How to Use
 
-The included script should be loaded into the script window of PCSWMM. The script has been tested for PCSWMM 7.4 but should be widely compatible between versions. The user settings section of the script should be reviewed. The first run of the script will set up an "AMM_Subcatchments" polygon layer with the appropriate attributes and open it in the model. Draw or import your polygons representing the subcatchments, complete the needed attributes, then run the script again to calculate results.
+The included CalculateAMM.py script should be loaded into the script window of PCSWMM. The script has been tested for PCSWMM 7.4 but should be widely compatible between versions. The user settings section of the script should be reviewed. The first run of the script will set up an "AMM_Subcatchments" polygon layer with the appropriate attributes and open it in the model. Draw or import your polygons representing the subcatchments, complete the needed attributes, then run the script again to calculate results.
 
 See the User Documentation section of the script for additional info.
 
