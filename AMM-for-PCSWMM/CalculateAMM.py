@@ -6,8 +6,8 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version 1.0
-# 2022-02-21
+# Version 1.01
+# 2022-03-14
 # Updated based on updated equations and terminology
 # Added a base component
 # Added support for calculation of historical temperatures from timeseries
