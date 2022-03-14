@@ -785,12 +785,9 @@ class AMMRun:
         if not os.path.isfile(layer_fname):
             dlg = pcpy.show_messagebox(
                 (
-                    'The "AMM_Subcatchments.shp" file cannot be found in the "%s_files"\
-                         directory.\n'
-                    "This is normal if this is the first time you are running this\
-                         script.\n"
-                    "Otherwise you may have forgotten to copy the shapefile from a\
-                         previous scenario.\n\n"
+                    'The "AMM_Subcatchments.shp" file cannot be found in the "%s_files" directory.\n'
+                    "This is normal if this is the first time you are running this script.\n"
+                    "Otherwise you may have forgotten to copy the shapefile from a previous scenario.\n\n"
                     'Would you like to create a new "AMM_Subcatchments.shp" file?'
                 )
                 % self.model_name,
@@ -814,12 +811,9 @@ class AMMRun:
                     "but it is not open in the current model.\n"
                     "This could be perfectly innocent, "
                     "or it could indicate you have the wrong AMM_Subcatchments open.\n\n"
-                    "(If this is a new scenario did you forget to close the old\
-                         AMM_Subcatchments layer?\n"
-                    "When saving as a new scenario best practice is to close the old\
-                         layer, copy the shapefile over, and reopen the new layer.)\n\n\n"
-                    'Would you like to load the "AMM_Subcatchments.shp" file and proceed\
-                         with the calculation?'
+                    "(If this is a new scenario did you forget to close the old AMM_Subcatchments layer?\n"
+                    "When saving as a new scenario best practice is to close the old layer, copy the shapefile over, and reopen the new layer.)\n\n\n"
+                    'Would you like to load the "AMM_Subcatchments.shp" file and proceed with the calculation?'
                 )
                 % self.model_name,
                 "",
@@ -872,8 +866,7 @@ class AMMRun:
         self.add_user_attribute(
             "ScaleArea",
             "Use Scaled Area?",
-            "If set to True the area of the subcatchment is automatically updated from\
-                 the scaled polygon area at runtime.",
+            "If set to True the area of the subcatchment is automatically updated from the scaled polygon area at runtime.",
             "",
             "Boolean",
             "1. Attributes",
@@ -897,8 +890,7 @@ class AMMRun:
         self.add_user_attribute(
             "MeterBasin",
             "Meter Basin",
-            "Optional name of the basin or meter basin of which this subcatchment is a\
-                 part. For user reference; not used in calculation.",
+            "Optional name of the basin or meter basin of which this subcatchment is a part. For user reference; not used in calculation.",
             "",
             "Text",
             "1. Attributes",
@@ -1043,48 +1035,42 @@ class AMMRun:
         self.add_user_attribute(
             "SpClSHCFF",
             "Fast Spring Cold SHCF",
-            "Cold Seasonal Hydrologic Condition Factor from Jan. 1 to July 15 for the\
-                 Fast component.",
+            "Cold Seasonal Hydrologic Condition Factor from Jan. 1 to July 15 for the Fast component.",
             SHCF_unit,
             cat="3. Fast",
         )
         self.add_user_attribute(
             "SpClSHCFM",
             "Medium Spring Cold SHCF",
-            "Cold Seasonal Hydrologic Condition Factor from Jan. 1 to July 15 for the\
-                 Medium component.",
+            "Cold Seasonal Hydrologic Condition Factor from Jan. 1 to July 15 for the Medium component.",
             SHCF_unit,
             cat="4. Medium",
         )
         self.add_user_attribute(
             "SpClSHCFS",
             "Slow Spring Cold SHCF",
-            "Cold Seasonal Hydrologic Condition Factor from Jan. 1 to July 15 for the\
-                 Slow component.",
+            "Cold Seasonal Hydrologic Condition Factor from Jan. 1 to July 15 for the Slow component.",
             SHCF_unit,
             cat="5. Slow",
         )
         self.add_user_attribute(
             "FlClSHCFF",
             "Fast Fall Cold SHCF",
-            "Cold Seasonal Hydrologic Condition Factor from July 15 to Dec. 31. for the\
-                 Fast component",
+            "Cold Seasonal Hydrologic Condition Factor from July 15 to Dec. 31. for the Fast component",
             SHCF_unit,
             cat="3. Fast",
         )
         self.add_user_attribute(
             "FlClSHCFM",
             "Medium Fall Cold SHCF",
-            "Cold Seasonal Hydrologic Condition Factor from July 15 to Dec. 31. for the\
-                 Medium component",
+            "Cold Seasonal Hydrologic Condition Factor from July 15 to Dec. 31. for the Medium component",
             SHCF_unit,
             cat="4. Medium",
         )
         self.add_user_attribute(
             "FlClSHCFS",
             "Slow Fall Cold SHCF",
-            "Cold Seasonal Hydrologic Condition Factor from July 15 to Dec. 31. for the\
-                 Slow component",
+            "Cold Seasonal Hydrologic Condition Factor from July 15 to Dec. 31. for the Slow component",
             SHCF_unit,
             cat="5. Slow",
         )
@@ -1099,16 +1085,14 @@ class AMMRun:
         self.add_user_attribute(
             "SpClRB",
             "Base Spring Cold R",
-            "Percent Capture during Cold conditions for the Base component from Jan. 1\
-                 to July 15.",
+            "Percent Capture during Cold conditions for the Base component from Jan. 1 to July 15.",
             "%",
             cat="6. Base",
         )
         self.add_user_attribute(
             "FlClRB",
             "Base Fall Cold R",
-            "Percent Capture during Cold conditions for the Base component from July 15\
-                 to Dec. 31.",
+            "Percent Capture during Cold conditions for the Base component from July 15 to Dec. 31.",
             "%",
             cat="6. Base",
         )
@@ -1208,22 +1192,18 @@ class AMMRun:
     def routing(self):
         # Check inflows file settings and warn user if needed
         files = list(_options.InterfaceFiles)
-        is_amm_file = [f.File[-28:] == "AMM_Subcatchments_Inflow.txt" for f in files]
-        filtered_files = [i for (i, v) in zip(files, is_amm_file) if not v]
-        is_inflows_file = [f.Type == "INFLOWS" for f in filtered_files]
-        if any(is_inflows_file):
+        amm_files = [f.File[-28:] == "AMM_Subcatchments_Inflow.txt" for f in files]
+        non_amm_files = [i for (i, v) in zip(files, amm_files) if not v]
+        non_amm_inflows_files = [f.Type == "INFLOWS" for f in non_amm_files]
+        if any(non_amm_inflows_files):
             dlg = pcpy.show_messagebox(
                 (
-                    "This script saves its results to an INFLOWS file for use by the\
-                         SWMM Engine. "
+                    "This script saves its results to an INFLOWS file for use by the SWMM Engine. "
                     "The SWMM Engine can only use one INFLOWS file in a simulation.\n"
                     "Additional INFLOWS files are ignored.\n\n"
-                    "It appears that an INFLOWS file is already associated with this\
-                         model.\n\n"
-                    "Before running the simulation you should either delete an old\
-                         INFLOWS file or manually combine the INFLOWS files.\n"
-                    "(Make sure the combined files does not have multiple inflow values\
-                         at the same node at the same time.)\n\n"
+                    "It appears that an INFLOWS file is already associated with this model.\n\n"
+                    "Before running the simulation you should either delete an old INFLOWS file or manually combine the INFLOWS files.\n"
+                    "(Make sure the combined files does not have multiple inflow values at the same node at the same time.)\n\n"
                     'INFLOWS file settings are available in the "Simulation Options" menu.'
                 ),
                 "USE INFLOWS file already in use",
@@ -1308,7 +1288,8 @@ class AMMRun:
                 bar2.update()
 
         # Set model inflow interface file
-        filtered_files.append(pcpy.InterfaceFile("Use", "INFLOWS", self.inflow_fname))
+        # Intentionally excludes any old AMM files from old scenarios
+        non_amm_files.append(pcpy.InterfaceFile("Use", "INFLOWS", self.inflow_fname))
         _options.InterfaceFiles = files
 
         # Write to the tsb file
@@ -1479,8 +1460,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
     if len(ts.Data) < 3:
         # Test
         raise Exception(
-            'Time Series "%s": this script currently does not support external data\
-                 files, only user input time series data.'
+            'Time Series "%s": this script currently does not support external data files, only user input time series data.'
             % ts_name
         )
 
@@ -1493,8 +1473,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
             assert not _end_t < ts_start
         except AssertionError:
             raise Exception(
-                'Data for time series "%s" does not overlap the simulation period. This\
-                     doesn\'t seem right...'
+                'Data for time series "%s" does not overlap the simulation period. This doesn\'t seem right...'
                 % ts_name
             )
     elif expected_overlap == "full":
@@ -1503,8 +1482,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
             assert ts_end >= _end_t
         except AssertionError:
             raise Exception(
-                'Data for temperature time series "%s" does not fully overlap the\
-                     simulation period. This is required for temperature time series.'
+                'Data for temperature time series "%s" does not fully overlap the simulation period. This is required for temperature time series.'
                 % ts_name
             )
 
@@ -1518,8 +1496,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
                 old_dt = dt
         except AssertionError:
             raise Exception(
-                'Data appears to be out of order for time series "%s". Data should be\
-                     ordered or bad things might happen.'
+                'Data appears to be out of order for time series "%s". Data should be ordered or bad things might happen.'
                 % ts_name
             )
 
