@@ -510,7 +510,7 @@ class AMMSub:
             )
             + 1
         )  # Maximum number of pre-simulation values needed for moving averages on first
-        timestep
+        #  timestep
 
         # If rain gage has already been used then use the conformed rainfall that has
         # already been computed
