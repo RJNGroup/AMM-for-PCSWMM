@@ -6,14 +6,23 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version 1.01
-# 2022-03-14
-# Updated based on updated equations and terminology
-# Added a base component
-# Added support for calculation of historical temperatures from timeseries
-# Added option to save more outputs, including multiple components
-# Improved user settings and documentation
-# Releasing open source!
+# Version 2.0
+# 2022-05-26
+# Removing RD term from 2nd level equation. This is a breaking change, but one Willie and Robert and I
+# all agree will improve orthogonality and improve intuition
+#
+# Changing SHCF units to %/in per previous change. Technically it could remain 1/in. but I believe this
+# clarifies.
+#
+# Removing MAT and using TP as averaging time for 2nd level precipitation. This reduces the number of
+# parameters. MAT has never really been intuitive or easy to calibrate. It was originally introduced
+# as a substitute to the Pt-1 term in the original equations which was intended to prevent RW rising
+# prematurely; this issue has largely been addressed with timestep independence improvements. Finally,
+# using an averaging time of TP for the 2nd level precipitation ensures increasing TP does not increase
+# total percent capture, which was recently identified to be an issue.
+#
+# Renaming to v 2.0 to be consistent with the convention that v1 is original equations and v2 is
+# reparametrized equations
 
 
 ### USER SETTINGS ###
@@ -187,7 +196,7 @@ _Q_conv_factor = {
 }[
     _flow_unit
 ]  # To CMS
-_SHCF_conv_factor = {"METRIC": 1000, "IMPERIAL": 39.37}[_unit_system]  # To 1/m
+_SHCF_conv_factor = {"METRIC": 1000, "IMPERIAL": 39.37}[_unit_system]/100.0  # To 1/m
 _rain_conv_factor = {"METRIC": 0.001, "IMPERIAL": 0.0254}[_unit_system]  # To m
 
 
@@ -327,22 +336,6 @@ class AMMSub:
             raise Exception('AMHLSlow of sub "%s" must be positive' % self.name)
         self.AMHLSlow *= 86400  # From days to seconds
 
-        self.MATFast = (
-            float(entity["MATFast"]) * 1440 / _calc_step_min
-        )  # From days to number of timesteps
-        if self.MATFast < 0:
-            raise Exception('MATFast of sub "%s" may not be negative' % self.name)
-        self.MATMed = (
-            float(entity["MATMed"]) * 1440 / _calc_step_min
-        )  # From days to number of timesteps
-        if self.MATMed < 0:
-            raise Exception('MATMed of sub "%s" may not be negative' % self.name)
-        self.MATSlow = (
-            float(entity["MATSlow"]) * 1440 / _calc_step_min
-        )  # From days to number of timesteps
-        if self.MATSlow < 0:
-            raise Exception('MATSlow of sub "%s" may not be negative' % self.name)
-
         self.SATFast = (
             float(entity["SATFast"]) * 1440 / _calc_step_min
         )  # Convert from days to number of timesteps
@@ -448,9 +441,6 @@ class AMMSub:
             self.AMHLFast,
             self.AMHLMed,
             self.AMHLSlow,
-            self.MATFast,
-            self.MATMed,
-            self.MATSlow,
             self.SATFast,
             self.SATMed,
             self.SATSlow,
@@ -497,9 +487,6 @@ class AMMSub:
                             self.TPMed,
                             self.TPSlow,
                             self.TPBase,
-                            self.MATFast,
-                            self.MATMed,
-                            self.MATSlow,
                             self.SATFast,
                             self.SATMed,
                             self.SATSlow,
@@ -575,9 +562,6 @@ class AMMSub:
             "TPMed",
             "TPSlow",
             "TPBase",
-            "MATFast",
-            "MATMed",
-            "MATSlow",
         ]:
             MAs[var] = self.MA(self.previousPrecips, getattr(self, var))
 
@@ -602,7 +586,7 @@ class AMMSub:
         LBase = 1.2 * (ColdRBase - self.HotRBase)
 
         # Do not allow SHCFt to drop below zero although this is possible at high
-        # temperatures for very low values of Hot SHCF
+        # temperatures if Hot SHCF is smaller than 1/11 Cold SHCF
         SHCFtFast = max(
             LFast / (1 + math.exp(-1 * self.k * (MAs["SATFast"] - self.x0)))
             + ColdSHCFFast
@@ -631,13 +615,13 @@ class AMMSub:
         # RW (Level 2 for AMM)
         RWtFast = (self.AMRFFast - 1) / math.log(
             self.AMRFFast
-        ) * self.RDFast * SHCFtFast * MAs["MATFast"] + self.AMRFFast * self.RWPrevF
+        ) * SHCFtFast * MAs["TPFast"] + self.AMRFFast * self.RWPrevF
         RWtMed = (self.AMRFMed - 1) / math.log(
             self.AMRFMed
-        ) * self.RDMed * SHCFtMed * MAs["MATMed"] + self.AMRFMed * self.RWPrevM
+        ) * SHCFtMed * MAs["TPMed"] + self.AMRFMed * self.RWPrevM
         RWtSlow = (self.AMRFSlow - 1) / math.log(
             self.AMRFSlow
-        ) * self.RDSlow * SHCFtSlow * MAs["MATSlow"] + self.AMRFSlow * self.RWPrevS
+        ) * SHCFtSlow * MAs["TPSlow"] + self.AMRFSlow * self.RWPrevS
 
         # Q (Level 1)
         QFast = (
@@ -829,7 +813,7 @@ class AMMRun:
     def add_amm_attributes(self, amm_layer):
         self.amm_layer.Locked = False
         area_unit = {"METRIC": "ha", "IMPERIAL": "ac"}[_unit_system]
-        SHCF_unit = {"METRIC": "1/mm", "IMPERIAL": "1/in"}[_unit_system]
+        SHCF_unit = {"METRIC": "%/mm", "IMPERIAL": "%/in"}[_unit_system]
 
         self.add_user_attribute(
             "Name",
@@ -1098,27 +1082,6 @@ class AMMRun:
         )
 
         self.add_user_attribute(
-            "MATFast",
-            "Fast MAT",
-            "Moisture Averaging Time for the Fast component.",
-            "days",
-            cat="3. Fast",
-        )
-        self.add_user_attribute(
-            "MATMed",
-            "Medium MAT",
-            "Moisture Averaging Time for the Medium component.",
-            "days",
-            cat="4. Medium",
-        )
-        self.add_user_attribute(
-            "MATSlow",
-            "Slow MAT",
-            "Moisture Averaging Time for the Slow component.",
-            "days",
-            cat="5. Slow",
-        )
-        self.add_user_attribute(
             "SATFast",
             "Fast SAT",
             "Seasonal Averaging Time for the Fast component.",
@@ -1252,7 +1215,7 @@ class AMMRun:
                 sub.AMM_run()
                 _already_calced_subs[sub.all_params] = sub
             i += 1
-
+        
         # Generate inflow interface file
         bar2 = pcpy.ProgressBar("Exporting Results to SWMM", len(_all_t))
         inflow_data = defaultdict(float)  # key = sub outlet name
@@ -1315,6 +1278,8 @@ class AMMRun:
         tsb_f.save()
         self.amm_layer.refresh_timeseries()
 
+        # Future: Check whether total percent capture ever exceeds 100% for any subcatchment and issue warning
+
     def get_tsb_funcs(self):
         for f in pcpy.Graph.Files:
             if f.FilePath == self.tsb_fname:
@@ -1334,7 +1299,7 @@ class AMMRun:
             "GPM": "gpm",
             "MGD": "mgd",
         }[_flow_unit]
-        tsb_SHCF_unit = {"IMPERIAL": "1/in", "METRIC": "1/mm"}[_unit_system]
+        tsb_SHCF_unit = {"IMPERIAL": "%/in", "METRIC": "%/mm"}[_unit_system]
         tsb_rain_unit = {"IMPERIAL": "in", "METRIC": "mm"}[_unit_system]
 
         tsb_funcs = [
