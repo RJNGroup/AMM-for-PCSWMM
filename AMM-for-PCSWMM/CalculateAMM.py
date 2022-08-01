@@ -1,3 +1,4 @@
+#Interpreter64:IronPython (Python 2.7)
 # tags: MapToolsSWMM
 # file: CalculateAMM
 # name: Calculate AMM
@@ -6,23 +7,15 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version 2.0
-# 2022-05-26
-# Removing RD term from 2nd level equation. This is a breaking change, but one Willie and Robert and I
-# all agree will improve orthogonality and improve intuition
+# Version B.1
+# 2022-08-01
+# 
+# Adding a user warning if total percent capture for any basin ever exceeds 100%
 #
-# Changing SHCF units to %/in per previous change. Technically it could remain 1/in. but I believe this
-# clarifies.
+# Fixed bug where "Use Scaled Area" was not working
 #
-# Removing MAT and using TP as averaging time for 2nd level precipitation. This reduces the number of
-# parameters. MAT has never really been intuitive or easy to calibrate. It was originally introduced
-# as a substitute to the Pt-1 term in the original equations which was intended to prevent RW rising
-# prematurely; this issue has largely been addressed with timestep independence improvements. Finally,
-# using an averaging time of TP for the 2nd level precipitation ensures increasing TP does not increase
-# total percent capture, which was recently identified to be an issue.
-#
-# Renaming to v 2.0 to be consistent with the convention that v1 is original equations and v2 is
-# reparametrized equations
+# Changing version nomenclature one more time to be consistent with the convention that A are the
+# original equations and B are the reparametrized equations
 
 
 ### USER SETTINGS ###
@@ -213,7 +206,7 @@ class AMMSub:
         if self.outlet not in _nodes:
             raise Exception('Sub "%s" must have a valid outlet' % self.name)
 
-        if entity["ScaleArea"] == "True":
+        if str(entity["ScaleArea"]) == "True":
             entity["Area"] = (
                 entity.Geometry.Area
                 * {"METRIC": 1e-4, "IMPERIAL": 2.2957e-5}[_unit_system]  # To ha or ac
@@ -1278,7 +1271,29 @@ class AMMRun:
         tsb_f.save()
         self.amm_layer.refresh_timeseries()
 
-        # Future: Check whether total percent capture ever exceeds 100% for any subcatchment and issue warning
+        # Check whether total percent capture ever exceeds 100% for any subcatchment and issue warning
+        ls_warn = []
+        for sub in amm_subs:
+            max_pc = max([sum(x) for x in zip(sub.results['PC_Fast'],
+                                              sub.results['PC_Med'],
+                                              sub.results['PC_Slow'],
+                                              sub.results['PC_Base'])])
+            if max_pc > 100:
+                ls_warn.append(sub.name)
+        if len(ls_warn) > 0:
+            str_warns = ", ".join(ls_warn)
+            dlg = pcpy.show_messagebox(
+                (
+                    "One or more subcatchments exceed 100%% total percent capture at some time in the simulation.\n"
+                    "You may wish to verify this is physically meaningful and adjust parameters for these subcatchments if needed:\n\n"
+                    "%s"
+                )
+                % str_warns,
+                "100% Percent Capture Exceeded",
+                pcpy.Enum.IconType.Important,
+                pcpy.Enum.ButtonType.OK,
+            )
+
 
     def get_tsb_funcs(self):
         for f in pcpy.Graph.Files:
