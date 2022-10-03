@@ -7,15 +7,10 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version B.1
-# 2022-08-01
+# Version B.2
+# 2022-10-03
 # 
-# Adding a user warning if total percent capture for any basin ever exceeds 100%
-#
-# Fixed bug where "Use Scaled Area" was not working
-#
-# Changing version nomenclature one more time to be consistent with the convention that A are the
-# original equations and B are the reparametrized equations
+# Changed intial RW units from unitless to be consistent with other units
 
 
 ### USER SETTINGS ###
@@ -303,18 +298,21 @@ class AMMSub:
                 'Fast Initial Wet Capture Fraction of sub "%s" may not be negative'
                 % self.name
             )
+        self.RW0Fast /= 100  # Convert from % to whole number
         self.RW0Med = float(entity["RW0Med"])
         if self.RW0Med < 0:
             raise Exception(
                 'Medium Initial Wet Capture Fraction of sub "%s" may not be negative'
                 % self.name
             )
+        self.RW0Med /= 100  # Convert from % to whole number
         self.RW0Slow = float(entity["RW0Slow"])
         if self.RW0Slow < 0:
             raise Exception(
                 'Slow Initial Wet Capture Fraction of sub "%s" may not be negative'
                 % self.name
             )
+        self.RW0Slow /= 100  # Convert from % to whole number
 
         self.AMHLFast = float(entity["AMHLFast"])
         if self.AMHLFast <= 0 and self.RDFast > 0:
@@ -1107,21 +1105,21 @@ class AMMRun:
             "RW0Fast",
             "Fast Initial RW",
             "RW (wet percent capture) at start of simulation for Fast component.",
-            "unitless",
+            "%",
             cat="3. Fast",
         )
         self.add_user_attribute(
             "RW0Med",
             "Medium Initial RW",
             "RW (wet percent capture) at start of simulation for Medium component.",
-            "unitless",
+            "%",
             cat="4. Medium",
         )
         self.add_user_attribute(
             "RW0Slow",
             "Slow Initial RW",
             "RW (wet percent capture) at start of simulation for Slow component.",
-            "unitless",
+            "%",
             cat="5. Slow",
         )
 
