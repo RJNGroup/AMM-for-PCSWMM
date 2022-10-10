@@ -7,10 +7,10 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version B.2
-# 2022-10-03
+# Version B.3
+# 2022-10-10
 # 
-# Changed intial RW units from unitless to be consistent with other units
+# Fixed bug - Inflows file was not linking/updating
 
 
 ### USER SETTINGS ###
@@ -1244,7 +1244,7 @@ class AMMRun:
         # Set model inflow interface file
         # Intentionally excludes any old AMM files from old scenarios
         non_amm_files.append(pcpy.InterfaceFile("Use", "INFLOWS", self.inflow_fname))
-        _options.InterfaceFiles = files
+        _options.InterfaceFiles = non_amm_files
 
         # Write to the tsb file
         tsb_f, tsb_funcs = self.get_tsb_funcs()
