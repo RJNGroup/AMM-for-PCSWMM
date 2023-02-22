@@ -7,10 +7,11 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version B.4
-# 2023-02-21
+# Version B.5
+# 2023-02-22
 # 
-# Fixed bug - Key Error at Line 1275 when _full_tsb_detail set to True
+# Bugfix - With B.4 I accidentally broke it when _full_tsb_detail is set to False
+# Performance Improvement - Rain processing is now faster! (From a couple minutes to a couple seconds for my test case)
 
 
 ### USER SETTINGS ###
@@ -1325,10 +1326,10 @@ class AMMRun:
 
         tsb_funcs = [
             tsb_f.add_function("Runoff", tsb_flow_unit, "AMM Subcatchments"),
+            tsb_f.add_function("Percent Capture", "%", "AMM Subcatchments"),
         ]
         if _full_tsb_detail == True:
             tsb_funcs += [
-                tsb_f.add_function("Percent Capture", "%", "AMM Subcatchments"),
                 tsb_f.add_function("SHCF", tsb_SHCF_unit, "AMM Subcatchments"),
                 tsb_f.add_function("Rain", tsb_rain_unit, "AMM Subcatchments"),
                 tsb_f.add_function("Temperature", "degrees", "AMM Subcatchments"),
@@ -1498,13 +1499,18 @@ def conform_ts(ts, out_times):
 
     Outputs a list of values conformed to out_times using linear interpolation where necessary.
     """
+    # Reverse ts so that earliest values are at end of list
+    # Calling pop() on a list is O(1) time when called on last element
+    # and O(n) time for any other element.
+    # It feels backwards to do it this way but speeds up tremendously!
+    ts.reverse()
     conf_ts = []
     for dt in out_times:
         while len(ts) >= 2:
-            dtv0 = ts[0]
-            dtv1 = ts[1]
+            dtv0 = ts[-1]
+            dtv1 = ts[-2]
             if dtv1[0] <= dt:
-                ts.pop(0)
+                ts.pop()
                 continue
             elif dtv0[0] == dt:
                 b = dtv0[1]
@@ -1518,10 +1524,10 @@ def conform_ts(ts, out_times):
                 conf_ts.append(0)
                 break
         if len(ts) == 1:
-            dtv0 = ts[0]
+            dtv0 = ts[-1]
             b = dtv0[1]
             conf_ts.append(b)
-            ts.pop(0)
+            ts.pop()
         elif len(ts) == 0:
             conf_ts.append(0)
     return conf_ts
