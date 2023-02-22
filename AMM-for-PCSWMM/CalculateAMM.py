@@ -7,10 +7,10 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version B.3
-# 2022-10-10
+# Version B.4
+# 2023-02-21
 # 
-# Fixed bug - Inflows file was not linking/updating
+# Fixed bug - Key Error at Line 1275 when _full_tsb_detail set to True
 
 
 ### USER SETTINGS ###
@@ -48,7 +48,7 @@ _tempDict = {
 
 # When set to True all outputs are saved to .tsb file for later viewing - good for calibration
 # When set to False only outputs Total Flow - quickest option
-_full_tsb_detail = True
+_full_tsb_detail = False
 
 ### END USER SETTINGS ###
 
@@ -157,6 +157,7 @@ if _full_tsb_detail is True:
         "Runoff_Med": [0, True],
         "Runoff_Slow": [0, True],
         "Runoff_Base": [0, True],
+        "PC_Total": [1, False],
         "PC_Fast": [1, True],
         "PC_Med": [1, True],
         "PC_Slow": [1, True],
@@ -168,7 +169,10 @@ if _full_tsb_detail is True:
         "Temps": [4, False],
     }
 else:
-    _meas_names = {"Runoff_Total": [0, False]}
+    _meas_names = {
+        "Runoff_Total": [0, False],
+        "PC_Total": [1, False],
+    }
 _start_t, _end_t = 0, 0  # Save routing times in global var
 _all_t = []
 _conformed_rain = {}
@@ -681,6 +685,7 @@ class AMMSub:
 
         # Save results - not as elegant as it could be, but faster than alternatives
         self.results["Runoff_Total"][self.curIndex] = FlowSum
+        self.results["PC_Total"][self.curIndex] = PCFast + PCMed + PCSlow + PCBase
         if _full_tsb_detail is True:
             self.results["Runoff_Fast"][self.curIndex] = QFast
             self.results["Runoff_Med"][self.curIndex] = QMed
@@ -1272,10 +1277,13 @@ class AMMRun:
         # Check whether total percent capture ever exceeds 100% for any subcatchment and issue warning
         ls_warn = []
         for sub in amm_subs:
-            max_pc = max([sum(x) for x in zip(sub.results['PC_Fast'],
-                                              sub.results['PC_Med'],
-                                              sub.results['PC_Slow'],
-                                              sub.results['PC_Base'])])
+            if _full_tsb_detail:
+                max_pc = max([sum(x) for x in zip(sub.results['PC_Fast'],
+                                                sub.results['PC_Med'],
+                                                sub.results['PC_Slow'],
+                                                sub.results['PC_Base'])])
+            else:
+                max_pc = max(sub.results['PC_Total'])
             if max_pc > 100:
                 ls_warn.append(sub.name)
         if len(ls_warn) > 0:
