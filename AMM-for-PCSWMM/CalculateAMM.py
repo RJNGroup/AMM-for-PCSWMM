@@ -7,11 +7,11 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version B.5
-# 2023-02-22
+# Version B.6
+# 2023-03-23
 # 
-# Bugfix - With B.4 I accidentally broke it when _full_tsb_detail is set to False
-# Performance Improvement - Rain processing is now faster! (From a couple minutes to a couple seconds for my test case)
+# Changed >100% percent capture warning from dialog to print statement
+# This allows the script to keep executing (notably to start the SWMM engine run) without further user input
 
 
 ### USER SETTINGS ###
@@ -1288,18 +1288,10 @@ class AMMRun:
             if max_pc > 100:
                 ls_warn.append(sub.name)
         if len(ls_warn) > 0:
-            str_warns = ", ".join(ls_warn)
-            dlg = pcpy.show_messagebox(
-                (
-                    "One or more subcatchments exceed 100%% total percent capture at some time in the simulation.\n"
-                    "You may wish to verify this is physically meaningful and adjust parameters for these subcatchments if needed:\n\n"
-                    "%s"
-                )
-                % str_warns,
-                "100% Percent Capture Exceeded",
-                pcpy.Enum.IconType.Important,
-                pcpy.Enum.ButtonType.OK,
-            )
+            print("One or more subcatchments exceed 100% total percent capture at some time in the simulation.")
+            print("You may wish to verify this is physically meaningful for these subcatchments:")
+            for sub in ls_warn:
+                print(sub)
 
 
     def get_tsb_funcs(self):
