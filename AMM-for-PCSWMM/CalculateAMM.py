@@ -7,11 +7,16 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-# Version B.6
-# 2023-03-23
+_version = 'B.7'
+# 2023-04-25
 # 
-# Changed >100% percent capture warning from dialog to print statement
-# This allows the script to keep executing (notably to start the SWMM engine run) without further user input
+# Bug - Fixed minor calculation error for rain gage time series with removed zeros
+# Updated nomenclature of TP to PAT to match the paper
+# Changed internal calculations to use start-of-interval rain convention
+# (This will shift all rain results in the tsb 1 timestep earlier with no
+# impact on flow results and is consistent with the paper)
+# Added support for decimal hour format for rain gage time intervals
+# Added AMM Version attribute to subcatchments for reference
 
 
 ### USER SETTINGS ###
@@ -256,26 +261,26 @@ class AMMSub:
             )
         self.FallColdRBase /= 100  # Convert from % to whole number
 
-        self.TPFast = (
-            float(entity["TPFast"]) * 60 / _calc_step_min
+        self.PATFast = (
+            float(entity["PATFast"]) * 60 / _calc_step_min
         )  # From hours to number of timesteps
-        if self.TPFast < 0:
-            raise Exception('TPFast of sub "%s" may not be negative' % self.name)
-        self.TPMed = (
-            float(entity["TPMed"]) * 60 / _calc_step_min
+        if self.PATFast < 0:
+            raise Exception('PATFast of sub "%s" may not be negative' % self.name)
+        self.PATMed = (
+            float(entity["PATMed"]) * 60 / _calc_step_min
         )  # From hours to number of timesteps
-        if self.TPMed < 0:
-            raise Exception('TPMed of sub "%s" may not be negative' % self.name)
-        self.TPSlow = (
-            float(entity["TPSlow"]) * 60 / _calc_step_min
+        if self.PATMed < 0:
+            raise Exception('PATMed of sub "%s" may not be negative' % self.name)
+        self.PATSlow = (
+            float(entity["PATSlow"]) * 60 / _calc_step_min
         )  # From hours to number of timesteps
-        if self.TPSlow < 0:
-            raise Exception('TPSlow of sub "%s" may not be negative' % self.name)
-        self.TPBase = (
-            float(entity["TPBase"]) * 60 / _calc_step_min
+        if self.PATSlow < 0:
+            raise Exception('PATSlow of sub "%s" may not be negative' % self.name)
+        self.PATBase = (
+            float(entity["PATBase"]) * 60 / _calc_step_min
         )  # From hours to number of timesteps
-        if self.TPBase < 0:
-            raise Exception('TPBase of sub "%s" may not be negative' % self.name)
+        if self.PATBase < 0:
+            raise Exception('PATBase of sub "%s" may not be negative' % self.name)
 
         self.HHLFast = float(entity["HHLFast"])
         if self.HHLFast <= 0 and self.RDFast > 0:
@@ -423,10 +428,10 @@ class AMMSub:
             self.RDFast,
             self.RDMed,
             self.RDSlow,
-            self.TPFast,
-            self.TPMed,
-            self.TPSlow,
-            self.TPBase,
+            self.PATFast,
+            self.PATMed,
+            self.PATSlow,
+            self.PATBase,
             self.HHLFast,
             self.HHLMed,
             self.HHLSlow,
@@ -479,10 +484,10 @@ class AMMSub:
                 math.floor(
                     max(
                         [
-                            self.TPFast,
-                            self.TPMed,
-                            self.TPSlow,
-                            self.TPBase,
+                            self.PATFast,
+                            self.PATMed,
+                            self.PATSlow,
+                            self.PATBase,
                             self.SATFast,
                             self.SATMed,
                             self.SATSlow,
@@ -502,8 +507,7 @@ class AMMSub:
         if self.gage.Name not in _conformed_rain:
             _conformed_rain[self.gage.Name] = conform_rainfall(self.gage)
 
-        # Assume zero precipitation prior to simulation start time (and therefore zero
-        # precip for first timestep)
+        # Assume zero precipitation prior to simulation start time
         self.precip = ([0.0] * self.maxMA) + _conformed_rain[self.gage.Name]
 
         # Calculate temperatures. Only calculate temps from simulation start to end
@@ -540,24 +544,13 @@ class AMMSub:
             return 0.5 ** (_calc_step_sec / HL)
 
     def AMM_timestep(self, t):
-        # tempValue at current timestep t represents temp right at time t
-        tempValue = self.temps[self.curavgIndex]
-        self.previousTemps.append(tempValue)
-
-        # Assume "end-of-interval" convention for precipitation, that is, that
-        # precipValue at current timestep t represents rain volume on (t-1,t].
-        precipValue = self.precip[self.curavgIndex]
-        self.previousPrecips.append(precipValue)
-        if precipValue > 0:
-            pass
-
         # Take moving averages of rain and temperature
         MAs = {}
         for var in [
-            "TPFast",
-            "TPMed",
-            "TPSlow",
-            "TPBase",
+            "PATFast",
+            "PATMed",
+            "PATSlow",
+            "PATBase",
         ]:
             MAs[var] = self.MA(self.previousPrecips, getattr(self, var))
 
@@ -611,13 +604,13 @@ class AMMSub:
         # RW (Level 2 for AMM)
         RWtFast = (self.AMRFFast - 1) / math.log(
             self.AMRFFast
-        ) * SHCFtFast * MAs["TPFast"] + self.AMRFFast * self.RWPrevF
+        ) * SHCFtFast * MAs["PATFast"] + self.AMRFFast * self.RWPrevF
         RWtMed = (self.AMRFMed - 1) / math.log(
             self.AMRFMed
-        ) * SHCFtMed * MAs["TPMed"] + self.AMRFMed * self.RWPrevM
+        ) * SHCFtMed * MAs["PATMed"] + self.AMRFMed * self.RWPrevM
         RWtSlow = (self.AMRFSlow - 1) / math.log(
             self.AMRFSlow
-        ) * SHCFtSlow * MAs["TPSlow"] + self.AMRFSlow * self.RWPrevS
+        ) * SHCFtSlow * MAs["PATSlow"] + self.AMRFSlow * self.RWPrevS
 
         # Q (Level 1)
         QFast = (
@@ -625,7 +618,7 @@ class AMMSub:
             * (1 - self.SFFast)
             / _calc_step_sec
             * (self.RDFast + (RWtFast + self.RWPrevF) / 2)
-            * MAs["TPFast"]
+            * MAs["PATFast"]
             + self.SFFast * self.QPrevF
         )
         QMed = (
@@ -633,7 +626,7 @@ class AMMSub:
             * (1 - self.SFMed)
             / _calc_step_sec
             * (self.RDMed + (RWtMed + self.RWPrevM) / 2)
-            * MAs["TPMed"]
+            * MAs["PATMed"]
             + self.SFMed * self.QPrevM
         )
         QSlow = (
@@ -641,7 +634,7 @@ class AMMSub:
             * (1 - self.SFSlow)
             / _calc_step_sec
             * (self.RDSlow + (RWtSlow + self.RWPrevS) / 2)
-            * MAs["TPSlow"]
+            * MAs["PATSlow"]
             + self.SFSlow * self.QPrevS
         )
         QBase = (
@@ -650,7 +643,7 @@ class AMMSub:
             / _calc_step_sec
             * (RtBase + self.RPrevB)
             / 2
-            * MAs["TPBase"]
+            * MAs["PATBase"]
             + self.SFBase * self.QPrevB
         )
 
@@ -663,6 +656,16 @@ class AMMSub:
         self.QPrevM = QMed
         self.QPrevS = QSlow
         self.QPrevB = QBase
+
+        # Update temp and precips for moving average
+        # tempValue at current timestep t represents temp right at time t
+        tempValue = self.temps[self.curavgIndex]
+        self.previousTemps.append(tempValue)
+
+        # Assume "start-of-interval" convention for precipitation, that is, that
+        # precipValue at current timestep t represents rain volume on [t,t+1).
+        precipValue = self.precip[self.curavgIndex]
+        self.previousPrecips.append(precipValue)
 
         # Total
         FlowSum = QFast + QMed + QSlow + QBase
@@ -754,8 +757,8 @@ class AMMRun:
         if os.path.isdir(dir_name) == False:
             os.mkdir(dir_name)
         self.layer_fname = dir_name + "\AMM_Subcatchments.shp"
-        self.inflow_fname = dir_name + "\AMM_Subcatchments_Inflow.txt"
-        self.tsb_fname = dir_name + "\AMM_Subcatchments.tsb"
+        self.inflow_fname = dir_name + "\AMM_Subcatchments_Inflow_" + _version + ".txt"
+        self.tsb_fname = dir_name + "\AMM_Subcatchments_" + _version + ".tsb"
         self.amm_layer = None  # If cannot be set up by enable_amm method, stop routing
 
     def enable_amm(self):
@@ -832,6 +835,14 @@ class AMMRun:
             "Tag",
             "Tag",
             "Optional category or classification.",
+            "",
+            "Text",
+            "1. Attributes",
+        )
+        self.add_user_attribute(
+            "AMMVersion",
+            "AMM Version",
+            "Version of the AMM-for-PCSWMM script that was used to create or update hydrology for user reference.",
             "",
             "Text",
             "1. Attributes",
@@ -914,30 +925,30 @@ class AMMRun:
             cat="5. Slow",
         )
         self.add_user_attribute(
-            "TPFast",
-            "Fast TP",
-            "Time to peak of the Fast component.",
+            "PATFast",
+            "Fast PAT",
+            "Precipitation averaging time of the Fast component.",
             "hr",
             cat="3. Fast",
         )
         self.add_user_attribute(
-            "TPMed",
-            "Medium TP",
-            "Time to peak of the Medium component.",
+            "PATMed",
+            "Medium PAT",
+            "Precipitation averaging time of the Medium component.",
             "hr",
             cat="4. Medium",
         )
         self.add_user_attribute(
-            "TPSlow",
-            "Slow TP",
-            "Time to peak of the Slow component.",
+            "PATSlow",
+            "Slow PAT",
+            "Precipitation averaging time of the Slow component.",
             "hr",
             cat="5. Slow",
         )
         self.add_user_attribute(
-            "TPBase",
-            "Base TP",
-            "Time to peak of the Base component.",
+            "PATBase",
+            "Base PAT",
+            "Precipitation averaging time of the Base component.",
             "hr",
             cat="6. Base",
         )
@@ -1152,7 +1163,7 @@ class AMMRun:
     def routing(self):
         # Check inflows file settings and warn user if needed
         files = list(_options.InterfaceFiles)
-        amm_files = [f.File[-28:] == "AMM_Subcatchments_Inflow.txt" for f in files]
+        amm_files = ["AMM_Subcatchments_Inflow" in f.File for f in files]
         non_amm_files = [i for (i, v) in zip(files, amm_files) if not v]
         non_amm_inflows_files = [f.Type == "INFLOWS" for f in non_amm_files]
         if any(non_amm_inflows_files):
@@ -1385,18 +1396,16 @@ def conform_rainfall(gage):
         # Assumes intensity is in mm/hr or in./hr units
         dt = datetime.datetime(precip_ts.Data[0].DateTime)
         cum_precip_list.append((dt, cum_rain))
+        prev_dt = dt
         for dtv in precip_ts.Data:
-            dt = datetime.datetime(dtv.DateTime) + datetime.timedelta(
-                minutes=precip_step_min
-            )
+            dt = datetime.datetime(dtv.DateTime)
+            if (dt-prev_dt).total_seconds()/60 > 1.5 * precip_step_min: #zero removed
+                cum_precip_list.append((dt, cum_rain))
             cum_rain += (
                 dtv.Value * precip_step_min / 60 * _rain_conv_factor
             )  # to meters
-            cum_precip_list.append((dt, cum_rain))
-        dt = datetime.datetime(dtv.DateTime) + datetime.timedelta(
-            minutes=precip_step_min
-        )
-        cum_precip_list.append((dt, cum_rain))
+            cum_precip_list.append((dt + datetime.timedelta(minutes=precip_step_min), cum_rain))
+            prev_dt = dt
     elif gage.RainFormat == "VOLUME":
         # Assumes "start-of-interval" convention that for 'Volume' data the rain at
         # timestep t represents rain on [t,t+1)
@@ -1405,32 +1414,34 @@ def conform_rainfall(gage):
         # timesteps may be missing (e.g. zeros removed)
         dt = datetime.datetime(precip_ts.Data[0].DateTime)
         cum_precip_list.append((dt, cum_rain))
+        prev_dt = dt
         for dtv in precip_ts.Data:
-            dt = datetime.datetime(dtv.DateTime) + datetime.timedelta(
-                minutes=precip_step_min
-            )
+            dt = datetime.datetime(dtv.DateTime)
+            if (dt-prev_dt).total_seconds()/60 > 1.5 * precip_step_min: #zero removed
+                cum_precip_list.append((dt, cum_rain))
             cum_rain += dtv.Value * _rain_conv_factor  # to meters
-            cum_precip_list.append((dt, cum_rain))
+            cum_precip_list.append((dt + datetime.timedelta(minutes=precip_step_min), cum_rain))
+            prev_dt = dt
 
-    out_times = [
-        _all_t_pydatetime[0] - datetime.timedelta(minutes=_calc_step_min)
-    ] + _all_t_pydatetime
+    out_times = _all_t_pydatetime + [
+        _all_t_pydatetime[-1] + datetime.timedelta(minutes=_calc_step_min)
+    ]
     # add one more timestep because we'll eventually lose one converting from cumulative
-    # to incremental
+    # to volume
 
     norm_precip = conform_ts(cum_precip_list, out_times)
 
-    # Convert from cumulative to incremental (volume)
-    # Uses "end-of-interval" convention - each timestep t represents rain falling on (t-1,t]
-    inc_precip = []
+    # Convert from cumulative to volume
+    # Uses "start-of-interval" convention - each timestep t represents rain falling on [t,t+1)
+    vol_precip = []
     a = norm_precip[0]
     for b in norm_precip[1:]:
         # Setting min. value to zero prevents negative flows if original time series
         # ends before simulation end
-        inc_precip.append(max(b - a, 0))
+        vol_precip.append(max(b - a, 0))
         a = b
 
-    return inc_precip
+    return vol_precip
 
 
 def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True):
@@ -1527,12 +1538,17 @@ def conform_ts(ts, out_times):
 
 def get_time(time_s):
     times = [float(s) for s in time_s.split(":")]
-    if len(times) == 2:
+    if len(times) == 1:
+        hr = times[0]
+        time_min = hr * 60
+    elif len(times) == 2:
         hr, min = times
         time_min = hr * 60 + min
-    else:
+    elif len(times) == 3:
         hr, min, sec = times
         time_min = hr * 60 + min + sec / 60
+    else:
+        raise Exception('Something is rotten in the state of Denmark with a time interval. "%s" was not able to be interpreted.' % time_s)
     return time_min
 
 
