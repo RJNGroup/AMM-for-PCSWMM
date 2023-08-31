@@ -1,4 +1,3 @@
-#Interpreter64:IronPython (Python 2.7)
 # tags: MapToolsSWMM
 # file: CalculateAMM
 # name: Calculate AMM
@@ -7,16 +6,12 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-_version = 'B.7'
-# 2023-04-25
+_version = 'B.8'
+# 2023-08-30
 # 
-# Bug - Fixed minor calculation error for rain gage time series with removed zeros
-# Updated nomenclature of TP to PAT to match the paper
-# Changed internal calculations to use start-of-interval rain convention
-# (This will shift all rain results in the tsb 1 timestep earlier with no
-# impact on flow results and is consistent with the paper)
-# Added support for decimal hour format for rain gage time intervals
-# Added AMM Version attribute to subcatchments for reference
+# Updated script to run on Python 3.10
+# Significant performance improvements! It takes half the time on my test model
+# Writing to TSB was sped up enough I removed the option to output only some measurements
 
 
 ### USER SETTINGS ###
@@ -51,10 +46,6 @@ _tempDict = {
     11: 40.3,
     12: 30.1,
 }
-
-# When set to True all outputs are saved to .tsb file for later viewing - good for calibration
-# When set to False only outputs Total Flow - quickest option
-_full_tsb_detail = False
 
 ### END USER SETTINGS ###
 
@@ -140,6 +131,8 @@ import math
 import os
 import re
 from collections import defaultdict
+from struct import pack
+from System import DateTime
 
 _nodes = pcpy.SWMM.Nodes
 _gages = pcpy.SWMM.Raingages
@@ -156,29 +149,23 @@ _unit_system = {
 # Define measurement names and metadata: 0) which tsb function to associate with, and
 #    1) whether to concatenate meas_name to location name
 #       (which is necessary for uniqueness but means you can't graph directly from the map)
-if _full_tsb_detail is True:
-    _meas_names = {
-        "Runoff_Total": [0, False],
-        "Runoff_Fast": [0, True],
-        "Runoff_Med": [0, True],
-        "Runoff_Slow": [0, True],
-        "Runoff_Base": [0, True],
-        "PC_Total": [1, False],
-        "PC_Fast": [1, True],
-        "PC_Med": [1, True],
-        "PC_Slow": [1, True],
-        "PC_Base": [1, True],
-        "SHCF_Fast": [2, True],
-        "SHCF_Med": [2, True],
-        "SHCF_Slow": [2, True],
-        "Rain": [3, False],
-        "Temps": [4, False],
-    }
-else:
-    _meas_names = {
-        "Runoff_Total": [0, False],
-        "PC_Total": [1, False],
-    }
+_meas_names = {
+    "Runoff_Total": [0, False],
+    "Runoff_Fast": [0, True],
+    "Runoff_Med": [0, True],
+    "Runoff_Slow": [0, True],
+    "Runoff_Base": [0, True],
+    "PC_Total": [1, False],
+    "PC_Fast": [1, True],
+    "PC_Med": [1, True],
+    "PC_Slow": [1, True],
+    "PC_Base": [1, True],
+    "SHCF_Fast": [2, True],
+    "SHCF_Med": [2, True],
+    "SHCF_Slow": [2, True],
+    "Rain": [3, False],
+    "Temps": [4, False],
+}
 _start_t, _end_t = 0, 0  # Save routing times in global var
 _all_t = []
 _conformed_rain = {}
@@ -690,20 +677,19 @@ class AMMSub:
         # Save results - not as elegant as it could be, but faster than alternatives
         self.results["Runoff_Total"][self.curIndex] = FlowSum
         self.results["PC_Total"][self.curIndex] = PCFast + PCMed + PCSlow + PCBase
-        if _full_tsb_detail is True:
-            self.results["Runoff_Fast"][self.curIndex] = QFast
-            self.results["Runoff_Med"][self.curIndex] = QMed
-            self.results["Runoff_Slow"][self.curIndex] = QSlow
-            self.results["Runoff_Base"][self.curIndex] = QBase
-            self.results["PC_Fast"][self.curIndex] = PCFast
-            self.results["PC_Med"][self.curIndex] = PCMed
-            self.results["PC_Slow"][self.curIndex] = PCSlow
-            self.results["PC_Base"][self.curIndex] = PCBase
-            self.results["SHCF_Fast"][self.curIndex] = SHCFtFast
-            self.results["SHCF_Med"][self.curIndex] = SHCFtMed
-            self.results["SHCF_Slow"][self.curIndex] = SHCFtSlow
-            self.results["Rain"][self.curIndex] = precipValue
-            self.results["Temps"][self.curIndex] = tempValue
+        self.results["Runoff_Fast"][self.curIndex] = QFast
+        self.results["Runoff_Med"][self.curIndex] = QMed
+        self.results["Runoff_Slow"][self.curIndex] = QSlow
+        self.results["Runoff_Base"][self.curIndex] = QBase
+        self.results["PC_Fast"][self.curIndex] = PCFast
+        self.results["PC_Med"][self.curIndex] = PCMed
+        self.results["PC_Slow"][self.curIndex] = PCSlow
+        self.results["PC_Base"][self.curIndex] = PCBase
+        self.results["SHCF_Fast"][self.curIndex] = SHCFtFast
+        self.results["SHCF_Med"][self.curIndex] = SHCFtMed
+        self.results["SHCF_Slow"][self.curIndex] = SHCFtSlow
+        self.results["Rain"][self.curIndex] = precipValue
+        self.results["Temps"][self.curIndex] = tempValue
 
         # Set indices for next iteration
         self.curIndex += 1
@@ -727,19 +713,18 @@ class AMMSub:
         twin_results_copy["Runoff_Total"] = [
             q * area_ratio for q in twin_results_copy["Runoff_Total"]
         ]
-        if _full_tsb_detail == True:
-            twin_results_copy["Runoff_Fast"] = [
-                q * area_ratio for q in twin_results_copy["Runoff_Fast"]
-            ]
-            twin_results_copy["Runoff_Med"] = [
-                q * area_ratio for q in twin_results_copy["Runoff_Med"]
-            ]
-            twin_results_copy["Runoff_Slow"] = [
-                q * area_ratio for q in twin_results_copy["Runoff_Slow"]
-            ]
-            twin_results_copy["Runoff_Base"] = [
-                q * area_ratio for q in twin_results_copy["Runoff_Base"]
-            ]
+        twin_results_copy["Runoff_Fast"] = [
+            q * area_ratio for q in twin_results_copy["Runoff_Fast"]
+        ]
+        twin_results_copy["Runoff_Med"] = [
+            q * area_ratio for q in twin_results_copy["Runoff_Med"]
+        ]
+        twin_results_copy["Runoff_Slow"] = [
+            q * area_ratio for q in twin_results_copy["Runoff_Slow"]
+        ]
+        twin_results_copy["Runoff_Base"] = [
+            q * area_ratio for q in twin_results_copy["Runoff_Base"]
+        ]
         self.results = twin_results_copy
 
     def dict_deepish_copy(self, results):
@@ -1198,14 +1183,14 @@ class AMMRun:
             _all_t.append(t)  # List of .NET DateTime
             t = t.AddMinutes(_calc_step_min)
         _all_t_pydatetime = [
-            datetime.datetime(dt) for dt in _all_t
+            DateTime_to_datetime(dt) for dt in _all_t
         ]  # List of Python datetime.datetime
 
         # Initialize each AMM subcatchment
         amm_subs = [AMMSub(entity) for entity in amm_entities]
 
         # Run calcs subcatchment by subcatchment
-        i = 0.0
+        i = 0
         for sub in amm_subs:
             # Recreating the progress bar each time because something is closing it
             bar1 = pcpy.ProgressBar(
@@ -1228,6 +1213,15 @@ class AMMRun:
         bar2 = pcpy.ProgressBar("Exporting Results to SWMM", len(_all_t))
         inflow_data = defaultdict(float)  # key = sub outlet name
         unique_outlets = {sub.outlet for sub in amm_subs}  # Create a set
+        ls_warn = []
+        for outlet in unique_outlets:
+            if len(outlet) >= 16:
+                ls_warn.append(outlet)
+        if len(ls_warn) > 0:
+            print("Warning: One or more outlets has a name that exceeds 15 characters. The SWMM Engine may or may not be able to interpret the IFNLOWS file due to file formatting issues:")
+            for sub in ls_warn:
+                print(sub)
+        
         with open(self.inflow_fname, "wt") as f:
             f.write("%s\n" % "SWMM5 Interface File")
             f.write("%s\n" % "Inflow created for AMM subcatchments.")
@@ -1241,21 +1235,18 @@ class AMMRun:
 
             for i in range(len(_all_t)):
                 t = _all_t[i]
-                time_string = "%-5s%-4s%-4s%-4s%-4s%-4s" % (
-                    t.Year,
-                    t.Month,
-                    t.Day,
-                    t.Hour,
-                    t.Minute,
-                    t.Second,
+                time_string = (
+                    f"{t.Year:<5d}"
+                    f"{t.Month:<4d}"
+                    f"{t.Day:<4d}"
+                    f"{t.Hour:<4d}"
+                    f"{t.Minute:<4d}"
+                    f"{t.Second:<4d}"
                 )
                 inflow_data.clear()
                 for sub in amm_subs:
                     inflow_data[sub.outlet] += sub.results["Runoff_Total"][i]
-                for outlet in unique_outlets:
-                    f.write(
-                        "%-16s " % outlet + time_string + "%g\n" % inflow_data[outlet]
-                    )
+                f.write("".join(f"{outlet:<16s} {time_string}{inflow_data[outlet]:g}\n" for outlet in unique_outlets))
                 bar2.update()
 
         # Set model inflow interface file
@@ -1263,58 +1254,17 @@ class AMMRun:
         non_amm_files.append(pcpy.InterfaceFile("Use", "INFLOWS", self.inflow_fname))
         _options.InterfaceFiles = non_amm_files
 
-        # Write to the tsb file
-        tsb_f, tsb_funcs = self.get_tsb_funcs()
-        k = 0
-        for sub in amm_subs:
-            for meas_name in _meas_names.keys():
-                func_index = _meas_names[meas_name][0]
-                loc_name = sub.name
-                if _meas_names[meas_name][1] == True:
-                    loc_name += "_" + meas_name
-                bar3 = pcpy.ProgressBar(
-                    "Saving Results to TSB", len(amm_subs) * len(_meas_names)
-                )
-                bar3.update(k)
-                loc = tsb_funcs[func_index].add_location(loc_name)
-                loc.Data = tuple(
-                    pcpy.DateTimeValue(_all_t[j], sub.results[meas_name][j])
-                    for j in range(len(_all_t))
-                )
-                k += 1
-            bar3.update()
-        tsb_f.save()
-        self.amm_layer.refresh_timeseries()
-
-        # Check whether total percent capture ever exceeds 100% for any subcatchment and issue warning
-        ls_warn = []
-        for sub in amm_subs:
-            if _full_tsb_detail:
-                max_pc = max([sum(x) for x in zip(sub.results['PC_Fast'],
-                                                sub.results['PC_Med'],
-                                                sub.results['PC_Slow'],
-                                                sub.results['PC_Base'])])
-            else:
-                max_pc = max(sub.results['PC_Total'])
-            if max_pc > 100:
-                ls_warn.append(sub.name)
-        if len(ls_warn) > 0:
-            print("One or more subcatchments exceed 100% total percent capture at some time in the simulation.")
-            print("You may wish to verify this is physically meaningful for these subcatchments:")
-            for sub in ls_warn:
-                print(sub)
-
-
-    def get_tsb_funcs(self):
-        for f in pcpy.Graph.Files:
+        # Write to tsb file
+        current_auto_refresh = pcpy.Graph.AutoRefresh
+        pcpy.Graph.AutoRefresh = False
+        
+        for f in pcpy.Graph.Files: # Close any existing tsb files of the same name
             if f.FilePath == self.tsb_fname:
-                tsb_f = f
+                pcpy.Graph.close_file(f.Name)
                 break
-        else:
-            tsb_f = pcpy.Graph.add_file(self.tsb_fname)
-
-        for func in tsb_f.Functions:
-            tsb_f.delete_function(func.Name, func.Units, func.Category)
+        
+        if os.path.exists(self.tsb_fname): # Delete any existing tsb files of the same name
+            os.remove(self.tsb_fname)
 
         tsb_flow_unit = {
             "CMS": "m3/s",
@@ -1328,17 +1278,49 @@ class AMMRun:
         tsb_rain_unit = {"IMPERIAL": "in", "METRIC": "mm"}[_unit_system]
 
         tsb_funcs = [
-            tsb_f.add_function("Runoff", tsb_flow_unit, "AMM Subcatchments"),
-            tsb_f.add_function("Percent Capture", "%", "AMM Subcatchments"),
+            ["Runoff", tsb_flow_unit],
+            ["Percent Capture", "%"],
+            ["SHCF", tsb_SHCF_unit],
+            ["Rain", tsb_rain_unit],
+            ["Temperature", "degrees"],
         ]
-        if _full_tsb_detail == True:
-            tsb_funcs += [
-                tsb_f.add_function("SHCF", tsb_SHCF_unit, "AMM Subcatchments"),
-                tsb_f.add_function("Rain", tsb_rain_unit, "AMM Subcatchments"),
-                tsb_f.add_function("Temperature", "degrees", "AMM Subcatchments"),
-            ]
+        
+        lt_seconds = [i*_calc_step_sec for i in range(len(_all_t))]
 
-        return tsb_f, tsb_funcs
+        bar3 = pcpy.ProgressBar(
+                    "Saving Results to TSB", len(amm_subs) * len(_meas_names)
+                )
+        tsb_f = TSB(self.tsb_fname, _start_t)
+        tsb_f.write_header()
+        for sub in amm_subs:
+            for meas_name in _meas_names.keys():
+                func_index = _meas_names[meas_name][0]
+                func_name = tsb_funcs[func_index][0]
+                unit = tsb_funcs[func_index][1]
+                loc_name = sub.name
+                if _meas_names[meas_name][1] == True:
+                    loc_name += "_" + meas_name
+                tsb_f.write_ts('AMM_Subcatchments', func_name, unit, loc_name, lt_seconds, sub.results[meas_name])
+                bar3.update()
+        tsb_f.write_footer()
+        pcpy.Graph.update(self.tsb_fname)
+        self.amm_layer.refresh_timeseries()
+        pcpy.Graph.AutoRefresh = current_auto_refresh
+
+        # Check whether total percent capture ever exceeds 100% for any subcatchment and issue warning
+        ls_warn = []
+        for sub in amm_subs:
+            max_pc = max([sum(x) for x in zip(sub.results['PC_Fast'],
+                                            sub.results['PC_Med'],
+                                            sub.results['PC_Slow'],
+                                            sub.results['PC_Base'])])
+            if max_pc > 100:
+                ls_warn.append(sub.name)
+        if len(ls_warn) > 0:
+            print("One or more subcatchments exceed 100% total percent capture at some time in the simulation.")
+            print("You may wish to verify this is physically meaningful for these subcatchments:")
+            for sub in ls_warn:
+                print(sub)
 
 
 def precalc_temps(maxMA=None):
@@ -1347,7 +1329,7 @@ def precalc_temps(maxMA=None):
         out_times = _all_t_pydatetime
         check_ordered = True
     else:  # Subsequent calls, where maxMA is an int
-        s_time = datetime.datetime(_start_t) - datetime.timedelta(
+        s_time = DateTime_to_datetime(_start_t) - datetime.timedelta(
             minutes=maxMA * _calc_step_min
         )
         out_times = [  # len(out_times) = maxMA
@@ -1362,7 +1344,7 @@ def precalc_temps(maxMA=None):
         )
         temp_list = []
         for dtv in temp_ts.Data:
-            temp_list.append((datetime.datetime(dtv.DateTime), dtv.Value))
+            temp_list.append((DateTime_to_datetime(dtv.DateTime), dtv.Value))
         final_temps = conform_ts(temp_list, out_times)
     else:
         final_temps = [interp_seasonal_temp(t) for t in out_times]
@@ -1385,7 +1367,7 @@ def conform_rainfall(gage):
         # cumulative total at time t.
         for dtv in precip_ts.Data:
             cum_rain = dtv.Value * _rain_conv_factor  # to meters
-            dt = datetime.datetime(dtv.DateTime)
+            dt = DateTime_to_datetime(dtv.DateTime)
             cum_precip_list.append((dt, cum_rain))
     elif gage.RainFormat == "INTENSITY":
         # Assumes "start-of-interval" convention that for 'Intensity' data the rain at
@@ -1394,11 +1376,11 @@ def conform_rainfall(gage):
         # Assumes the rain gage time step is consistently used, but intermittent values
         # timesteps may be missing (e.g. zeros removed)
         # Assumes intensity is in mm/hr or in./hr units
-        dt = datetime.datetime(precip_ts.Data[0].DateTime)
+        dt = DateTime_to_datetime(precip_ts.Data[0].DateTime)
         cum_precip_list.append((dt, cum_rain))
         prev_dt = dt
         for dtv in precip_ts.Data:
-            dt = datetime.datetime(dtv.DateTime)
+            dt = DateTime_to_datetime(dtv.DateTime)
             if (dt-prev_dt).total_seconds()/60 > 1.5 * precip_step_min: #zero removed
                 cum_precip_list.append((dt, cum_rain))
             cum_rain += (
@@ -1412,11 +1394,11 @@ def conform_rainfall(gage):
         # This is consistent with EPA SWMM
         # Assumes the rain gage time step is consistently used, but intermittent values
         # timesteps may be missing (e.g. zeros removed)
-        dt = datetime.datetime(precip_ts.Data[0].DateTime)
+        dt = DateTime_to_datetime(precip_ts.Data[0].DateTime)
         cum_precip_list.append((dt, cum_rain))
         prev_dt = dt
         for dtv in precip_ts.Data:
-            dt = datetime.datetime(dtv.DateTime)
+            dt = DateTime_to_datetime(dtv.DateTime)
             if (dt-prev_dt).total_seconds()/60 > 1.5 * precip_step_min: #zero removed
                 cum_precip_list.append((dt, cum_rain))
             cum_rain += dtv.Value * _rain_conv_factor  # to meters
@@ -1480,7 +1462,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
     if check_ordered is True:
         old_dt = ts.Data[0].DateTime
         try:
-            for dtv in ts.Data[1:]:
+            for dtv in list(ts.Data)[1:]:
                 dt = dtv.DateTime
                 assert dt > old_dt
                 old_dt = dt
@@ -1536,6 +1518,95 @@ def conform_ts(ts, out_times):
     return conf_ts
 
 
+class TSB:
+    '''Code to write a tsb file from https://support.chiwater.com/167810/script-tool-calculate-derived-time-series-from-epanet-results
+    I'm using this to avoid using the pcpy.DateTimeValue call which is painstakingly slow
+    Perhaps we can remove this function at some point in the future'''
+    def __init__(self, fname, start_time):
+        t0 = DateTime(1899, 12, 30)     # PCSWMM day 0 is 1899-12-30
+        self.start_day = start_time.Subtract(t0).TotalDays
+
+        self.f = open(fname, 'wb')
+        
+        self.magic_code = 518528588
+        self.version = 2
+        self.INT4 = '<i'
+        self.LONG8 = '<q'
+        self.FLOAT4 = '<f'
+        self.FLOAT8 = '<d'
+        self.BYTE4 = 4
+        self.BYTE8 = 8
+        
+        self.current_pos = 0
+        self.saved_ts = []     # to write footer
+        
+    def write_header(self):
+        f = self.f
+        
+        ENCODING = 0
+        f.write(pack(self.INT4, self.magic_code))
+        f.write(pack(self.INT4, self.version))
+        f.write(pack(self.INT4, ENCODING))
+        self.current_pos += self.BYTE4*3
+
+    def get_time_interval(self, lt_t):
+        n = len(lt_t)
+        if n == 1: return 0
+        return lt_t[1] - lt_t[0]
+
+    def write_ts(self, category, func_name, unit, loc_name, lt_t, lt_vals, conv_f=1.0):
+        # write one time series to tsb file. 
+        # timestamps in lt_t are in units seconds
+        FIXEDSTEP = 1    # fixed time step
+        num_points = len(lt_t)
+        ts = {'Category':category, 'Function':func_name, 'Unit':unit, 'Location':loc_name}
+        ts['Position'] = self.current_pos
+
+        interval = self.get_time_interval(lt_t)
+        f = self.f
+        
+        f.write(pack(self.INT4, FIXEDSTEP))
+        f.write(pack(self.INT4, num_points))
+        f.write(pack(self.FLOAT8, lt_t[0]/86400.+self.start_day))
+        f.write(pack(self.FLOAT8, interval))
+        self.current_pos += self.BYTE4*2 + self.BYTE8*2
+
+        # write values
+        for v in lt_vals:
+            f.write(pack(self.FLOAT4, v*conv_f))
+        self.current_pos += self.BYTE4*num_points
+        
+        # save added ts for writing footer
+        self.saved_ts.append(ts)
+        
+    def write_footer(self):
+        # write time series information section
+        timeseries_pos = self.current_pos
+        f = self.f
+        for ts in self.saved_ts:
+            self._write_chars(ts['Category'])
+            self._write_chars(ts['Function'])
+            self._write_chars(ts['Unit'])
+            self._write_chars(ts['Location'])
+            f.write(pack(self.LONG8, ts['Position']))  # time series position
+            self.current_pos += self.BYTE8
+            
+        # reserved data section - not used right now
+        reserved_pos = self.current_pos
+        f.write(pack(self.LONG8, timeseries_pos))
+        f.write(pack(self.LONG8, reserved_pos))
+        f.write(pack(self.INT4, len(self.saved_ts)))
+        f.write(pack(self.INT4, self.magic_code))
+        f.close()
+        
+    def _write_chars(self, s):
+        chars = s.encode('utf-8')
+        n = len(chars)
+        self.f.write(pack(self.INT4, n))
+        self.f.write(pack('<%ds'%n, chars))
+        self.current_pos += self.BYTE4+n
+
+
 def get_time(time_s):
     times = [float(s) for s in time_s.split(":")]
     if len(times) == 1:
@@ -1553,12 +1624,17 @@ def get_time(time_s):
 
 
 def get_datetime(date_s, time_s):
-    mon, day, yr = [float(s) for s in re.split("-|/", date_s)]
+    mon, day, yr = [int(s) for s in re.split("-|/", date_s)]
     hr, min, sec = 0, 0, 0
     lt_time = re.split(":", time_s)
     if len(lt_time) == 3:
-        hr, min, sec = [float(s) for s in lt_time]
+        hr, min, sec = [int(s) for s in lt_time]
     return pcpy.DateTime(yr, mon, day, hr, min, sec)
+
+
+def DateTime_to_datetime(DT):
+    '''Converts type System.DateTime to datetime.datetime'''
+    return datetime.datetime(DT.Year, DT.Month, DT.Day, DT.Hour, DT.Minute, DT.Second)
 
 
 def lin_interp(t, t0, t1, y0, y1):
@@ -1612,7 +1688,7 @@ def interp_seasonal_temp(t):
 
 
 # Main
-if __name__ == "<module>":
+if __name__ == "__main__":
     if _calc_step_min == 0:
         _calc_step_min = get_time(_options.WetStep)
         if _calc_step_min == 0:
