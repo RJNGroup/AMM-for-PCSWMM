@@ -1435,7 +1435,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
             'Time Series "%s": this script currently does not support external data files, only user input time series data.'
             % ts_name
         )
-
+    
     # Test that the timeseries partially or fully overlaps the simulation period
     ts_start = ts.Data[0].DateTime
     ts_end = ts.Data[-1].DateTime
@@ -1445,7 +1445,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
             assert not _end_t < ts_start
         except AssertionError:
             raise Exception(
-                'Data for time series "%s" does not overlap the simulation period. This doesn\'t seem right...'
+                'Data for time series "%s" does not overlap the simulation period. This doesn\'t seem right... (This error has also triggered for non-numeric data in the rain timeseries.)'
                 % ts_name
             )
     elif expected_overlap == "full":
