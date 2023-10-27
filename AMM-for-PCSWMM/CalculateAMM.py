@@ -1186,6 +1186,18 @@ class AMMRun:
             DateTime_to_datetime(dt) for dt in _all_t
         ]  # List of Python datetime.datetime
 
+        # Assert that AMM subcatchment names are unique
+        sub_names_list = [entity["Name"] for entity in amm_entities]
+        seen = set()
+        dupes = set()
+        for name in sub_names_list:
+            if name in seen:
+                dupes.add(name)
+            else:
+                seen.add(name)
+        if len(dupes) > 0:
+            raise Exception('AMM_Subcatchment names should be unique. The following names are duplicates: "%s".' % dupes)
+        
         # Initialize each AMM subcatchment
         amm_subs = [AMMSub(entity) for entity in amm_entities]
 
