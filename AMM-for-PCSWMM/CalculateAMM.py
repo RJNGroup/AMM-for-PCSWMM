@@ -1218,7 +1218,7 @@ class AMMRun:
             if len(outlet) >= 16:
                 ls_warn.append(outlet)
         if len(ls_warn) > 0:
-            print("Warning: One or more outlets has a name that exceeds 15 characters. The SWMM Engine may or may not be able to interpret the IFNLOWS file due to file formatting issues:")
+            print("Warning: One or more outlets has a name that exceeds 15 characters. The SWMM Engine may or may not be able to interpret the INFLOWS file due to file formatting issues:")
             for sub in ls_warn:
                 print(sub)
         
