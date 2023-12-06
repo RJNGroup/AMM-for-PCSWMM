@@ -6,12 +6,14 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-_version = 'B.8'
-# 2023-08-30
+_version = 'B.9'
+# 2023-12-06
 # 
-# Updated script to run on Python 3.10
-# Significant performance improvements! It takes half the time on my test model
-# Writing to TSB was sped up enough I removed the option to output only some measurements
+# Fixed error in base flow calculation that was causing base flow component to be half what it should have been
+# Users who have calibrated using an old version should correct when switching to the new version by halving
+# the following parameters: Base Hot R, Base Spring Cold R, and Base Fall Cold R and verifying results.
+# Assert uniqueness of AMM_Subcatchment names
+# Clarified one error message for an alternate cause
 
 
 ### USER SETTINGS ###
@@ -638,7 +640,7 @@ class AMMSub:
         self.RWPrevF = RWtFast
         self.RWPrevM = RWtMed
         self.RWPrevS = RWtSlow
-        self.RWPrevB = RtBase
+        self.RPrevB = RtBase
         self.QPrevF = QFast
         self.QPrevM = QMed
         self.QPrevS = QSlow
@@ -1186,6 +1188,18 @@ class AMMRun:
             DateTime_to_datetime(dt) for dt in _all_t
         ]  # List of Python datetime.datetime
 
+        # Assert that AMM subcatchment names are unique
+        sub_names_list = [entity["Name"] for entity in amm_entities]
+        seen = set()
+        dupes = set()
+        for name in sub_names_list:
+            if name in seen:
+                dupes.add(name)
+            else:
+                seen.add(name)
+        if len(dupes) > 0:
+            raise Exception('AMM_Subcatchment names should be unique. The following names are duplicates: "%s".' % dupes)
+        
         # Initialize each AMM subcatchment
         amm_subs = [AMMSub(entity) for entity in amm_entities]
 
@@ -1435,7 +1449,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
             'Time Series "%s": this script currently does not support external data files, only user input time series data.'
             % ts_name
         )
-
+    
     # Test that the timeseries partially or fully overlaps the simulation period
     ts_start = ts.Data[0].DateTime
     ts_end = ts.Data[-1].DateTime
@@ -1445,7 +1459,7 @@ def load_and_validate_ts(ts_name, expected_overlap="partial", check_ordered=True
             assert not _end_t < ts_start
         except AssertionError:
             raise Exception(
-                'Data for time series "%s" does not overlap the simulation period. This doesn\'t seem right...'
+                'Data for time series "%s" does not overlap the simulation period. This doesn\'t seem right... (This error has also triggered for non-numeric data in the rain timeseries.)'
                 % ts_name
             )
     elif expected_overlap == "full":
