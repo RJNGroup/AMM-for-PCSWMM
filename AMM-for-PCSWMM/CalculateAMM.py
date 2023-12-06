@@ -6,12 +6,14 @@
 # Written by David Edgren, RJN Group
 # Thanks to Hailiang Shen, Computational Hydraulics International (CHI)
 #
-_version = 'B.8'
-# 2023-08-30
+_version = 'B.9'
+# 2023-12-06
 # 
-# Updated script to run on Python 3.10
-# Significant performance improvements! It takes half the time on my test model
-# Writing to TSB was sped up enough I removed the option to output only some measurements
+# Fixed error in base flow calculation that was causing base flow component to be half what it should have been
+# Users who have calibrated using an old version should correct when switching to the new version by halving
+# the following parameters: Base Hot R, Base Spring Cold R, and Base Fall Cold R and verifying results.
+# Assert uniqueness of AMM_Subcatchment names
+# Clarified one error message for an alternate cause
 
 
 ### USER SETTINGS ###
