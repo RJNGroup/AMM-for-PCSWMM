@@ -638,7 +638,7 @@ class AMMSub:
         self.RWPrevF = RWtFast
         self.RWPrevM = RWtMed
         self.RWPrevS = RWtSlow
-        self.RWPrevB = RtBase
+        self.RPrevB = RtBase
         self.QPrevF = QFast
         self.QPrevM = QMed
         self.QPrevS = QSlow
